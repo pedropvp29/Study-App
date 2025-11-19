@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planejador de Estudos e Revisões</title>
+    <!-- Carrega o Tailwind CSS CDN para estilização -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configuração da fonte Inter e das classes de cores customizadas -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        
+        :root {
+            /* Cores da paleta fornecida */
+            --color-primary: #6067E0; /* Azul/Roxo (Accent Principal) */
+            --color-secondary: #87E060; /* Verde Claro (Sucesso/Estudado) */
+            --color-danger: #FF5454; /* Vermelho (Alerta) */
+            --color-background: #202731; /* Fundo Principal Escuro */
+            --color-card: #2A3545; /* Cartão/Elemento Secundário */
+            --color-text: #E5E7EB; /* Texto Claro */
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--color-background);
+            color: var(--color-text);
+        }
+
+        /* Classes Tailwind customizadas */
+        .btn-primary {
+            background-color: var(--color-primary);
+            color: white;
+            transition: background-color 0.2s;
+        }
+        .btn-primary:hover {
+            background-color: #4B52C3; /* Um pouco mais escuro */
+        }
+
+        .input-dark, .select-dark {
+            background-color: var(--color-card);
+            color: var(--color-text);
+            border: 1px solid #4B52C3;
+        }
+
+        /* Estilo para a barra de rolagem (melhora a estética no tema escuro) */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--color-card);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--color-primary);
+            border-radius: 4px;
+        }
+
+        /* Estilização específica para o filtro */
+        #filterInput::placeholder {
+            color: #9CA3AF;
+        }
+        
+        /* NOVO: Estilo para o Tooltip de Revisão */
+        .revision-tooltip {
+            /* Impede que o tooltip interfira em cliques */
+            pointer-events: none; 
+            /* Garante que o tooltip fique acima dos outros elementos */
+            z-index: 50; 
+            /* Ajuste o posicionamento para não cobrir o conteúdo interativo */
+            bottom: 100%; 
+            left: 50%;
+            transform: translateX(-50%) translateY(5px);
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.2s;
+        }
+
+        .group:hover .revision-tooltip {
+            opacity: 100;
+            transform: translateX(-50%) translateY(-5px); /* Move para cima ao aparecer */
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 sm:p-8">
+
+    <header class="text-center mb-10">
+        <h1 class="text-3xl font-bold text-white mb-2">🚀 Planejador de Estudos</h1>
+        <p class="text-gray-400">Organize seu conteúdo e revise nos momentos certos.</p>
+    </header>
+
+    <!-- Estrutura de Tabs -->
+    <div class="max-w-7xl mx-auto rounded-xl shadow-2xl overflow-hidden bg-gray-900/50">
+        <!-- Navegação das Tabs -->
+        <div class="flex border-b-2 border-gray-700">
+            <button id="tab-planner" class="tab-btn p-4 flex-1 text-center font-semibold rounded-tl-xl transition-colors duration-300" onclick="switchTab('planner')">
+                🗓️ Planejamento Semanal
+            </button>
+            <button id="tab-content" class="tab-btn p-4 flex-1 text-center font-semibold transition-colors duration-300 active-tab" onclick="switchTab('content')">
+                📚 Tabela de Conteúdo
+            </button>
+            <button id="tab-alerts" class="tab-btn p-4 flex-1 text-center font-semibold rounded-tr-xl transition-colors duration-300 relative" onclick="switchTab('alerts')">
+                🔔 Alertas de Revisão (<span id="alert-count" class="font-bold text-var(--color-danger)">0</span>)
+            </button>
+        </div>
+
+        <!-- Conteúdo das Tabs -->
+        <div id="tab-content-container" class="p-4 sm:p-8">
+            
+            <!-- 1. Tabela de Conteúdo (Ativa por padrão) -->
+            <div id="content" class="tab-page">
+                <h2 class="text-2xl font-semibold mb-4 border-b pb-2 border-gray-700">Adicionar Novo Conteúdo</h2>
+                
+                <!-- Formulário para Adicionar Conteúdo -->
+                <form id="addContentForm" class="bg-var(--color-card) p-6 rounded-lg shadow-inner grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                    <div class="md:col-span-2">
+                        <label for="materia" class="block text-sm font-medium mb-1">Matéria</label>
+                        <input type="text" id="materia" required placeholder="Ex: Matemática" class="w-full p-2 rounded-lg input-dark">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="topico" class="block text-sm font-medium mb-1">Tópico</label>
+                        <input type="text" id="topico" required placeholder="Ex: Equação do Segundo Grau" class="w-full p-2 rounded-lg input-dark">
+                    </div>
+                    <div class="md:col-span-4 flex justify-end">
+                        <button type="submit" class="btn-primary px-6 py-2 rounded-lg font-bold">
+                            Adicionar Tópico
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Filtro -->
+                <div class="mb-4">
+                    <label for="filterInput" class="block text-lg font-medium mb-2">Filtrar por Matéria</label>
+                    <input type="text" id="filterInput" placeholder="Digite o nome da Matéria para filtrar..." 
+                           class="w-full p-3 rounded-lg input-dark focus:ring-2 focus:ring-var(--color-primary)" 
+                           oninput="renderTable()">
+                </div>
+
+                <!-- Tabela de Conteúdo -->
+                <div class="overflow-x-auto relative shadow-md rounded-lg">
+                    <table class="w-full text-sm text-left text-gray-400">
+                        <thead class="text-xs text-gray-200 uppercase" style="background-color: #313E54;">
+                            <tr>
+                                <th scope="col" class="py-3 px-6">Matéria</th>
+                                <th scope="col" class="py-3 px-6">Tópico</th>
+                                <th scope="col" class="py-3 px-6">Estudei em</th>
+                                <th scope="col" class="py-3 px-3 text-center">Estudei</th>
+                                <th scope="col" class="py-3 px-3 text-center">Exercício</th>
+                                <th scope="col" class="py-3 px-3 text-center">Rev 3</th>
+                                <th scope="col" class="py-3 px-3 text-center">Rev 6</th>
+                                <th scope="col" class="py-3 px-3 text-center">Rev 15</th>
+                                <th scope="col" class="py-3 px-3 text-center">Rev 30</th>
+                                <th scope="col" class="py-3 px-3 text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contentTableBody">
+                            <!-- Linhas da tabela serão inseridas aqui pelo JavaScript -->
+                            <tr class="border-b bg-var(--color-card) hover:bg-var(--color-card)/70">
+                                <td colspan="10" class="py-4 px-6 text-center italic text-gray-500">
+                                    Nenhum tópico adicionado.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 2. Planejamento Semanal -->
+            <div id="planner" class="tab-page hidden">
+                <h2 class="text-2xl font-semibold mb-6 border-b pb-2 border-gray-700">Planejamento Semanal de Estudos</h2>
+                <div id="weeklyPlanner" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+                    <!-- Cards para os dias da semana serão gerados aqui -->
+                </div>
+            </div>
+
+            <!-- 3. Alertas de Revisão -->
+            <div id="alerts" class="tab-page hidden">
+                <h2 class="text-2xl font-semibold mb-6 border-b pb-2 border-gray-700">🔔 Alertas para Hoje (<span id="todayDate"></span>)</h2>
+                
+                <div id="revisionAlerts" class="space-y-4">
+                    <div id="noAlertsMessage" class="p-4 rounded-lg text-center" style="background-color: #2A3545;">
+                        🎉 Parabéns! Nenhuma revisão pendente para hoje.
+                    </div>
+                    <!-- Alertas serão inseridos aqui -->
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Mensagem de notificação customizada (substitui alert()) -->
+    <div id="notification" class="fixed bottom-5 right-5 p-3 rounded-lg shadow-lg text-white font-medium z-50 transition-transform transform translate-x-full" style="background-color: var(--color-primary);">
+        <!-- Texto da Notificação -->
+    </div>
+
+    <script>
+        // --- VARIÁVEIS GLOBAIS ---
+        let studyContent = JSON.parse(localStorage.getItem('studyContent')) || [];
+        const revisionDays = [3, 6, 15, 30];
+        const weekdays = [
+            { name: 'Segunda-feira', key: 'mon' },
+            { name: 'Terça-feira', key: 'tue' },
+            { name: 'Quarta-feira', key: 'wed' },
+            { name: 'Quinta-feira', key: 'thu' },
+            { name: 'Sexta-feira', key: 'fri' },
+            { name: 'Sábado', key: 'sat' },
+            { name: 'Domingo', key: 'sun' }
+        ];
+        let weeklyPlan = JSON.parse(localStorage.getItem('weeklyPlan')) || {};
+
+
+        // --- FUNÇÕES DE UTILIDADE ---
+
+        /**
+         * Exibe uma notificação customizada no canto da tela.
+         * @param {string} message - A mensagem a ser exibida.
+         * @param {string} color - A cor de fundo (e.g., 'var(--color-primary)', 'var(--color-danger)').
+         */
+        function showNotification(message, color = 'var(--color-primary)') {
+            const notificationEl = document.getElementById('notification');
+            notificationEl.textContent = message;
+            notificationEl.style.backgroundColor = color;
+            notificationEl.classList.remove('translate-x-full');
+            notificationEl.classList.add('translate-x-0');
+
+            setTimeout(() => {
+                notificationEl.classList.remove('translate-x-0');
+                notificationEl.classList.add('translate-x-full');
+            }, 3000);
+        }
+
+        /**
+         * Salva o array de conteúdo no localStorage.
+         */
+        function saveContent() {
+            localStorage.setItem('studyContent', JSON.stringify(studyContent));
+            updateAlertsTab();
+        }
+
+        /**
+         * Converte uma data (string 'YYYY-MM-DD') em um objeto Date.
+         * @param {string} dateString - Data no formato 'YYYY-MM-DD'.
+         * @returns {Date} Objeto Date.
+         */
+        function dateFromString(dateString) {
+            // Cria a data no fuso horário local para evitar problemas de dia
+            const [year, month, day] = dateString.split('-').map(Number);
+            return new Date(year, month - 1, day);
+        }
+
+        /**
+         * Formata um objeto Date para 'DD/MM/YYYY'.
+         * @param {Date} date - Objeto Date.
+         * @returns {string} Data formatada.
+         */
+        function formatDate(date) {
+            if (!date) return 'N/A';
+            return new Date(date).toLocaleDateString('pt-BR');
+        }
+
+        // --- LÓGICA DAS TABS ---
+
+        /**
+         * Troca a aba ativa.
+         * @param {string} tabId - O ID da aba a ser ativada ('planner', 'content', 'alerts').
+         */
+        function switchTab(tabId) {
+            // Esconde todas as páginas e remove a classe 'active-tab' de todos os botões
+            document.querySelectorAll('.tab-page').forEach(page => page.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active-tab');
+                btn.style.backgroundColor = 'transparent';
+                btn.style.color = 'var(--color-text)';
+            });
+
+            // Mostra a página selecionada e adiciona a classe 'active-tab' ao botão
+            document.getElementById(tabId).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tab-${tabId}`);
+            activeBtn.classList.add('active-tab');
+            activeBtn.style.backgroundColor = 'var(--color-card)';
+            activeBtn.style.color = 'var(--color-primary)';
+
+            // Executa a renderização específica da aba
+            if (tabId === 'content') {
+                renderTable();
+            } else if (tabId === 'alerts') {
+                updateAlertsTab();
+            } else if (tabId === 'planner') {
+                renderWeeklyPlanner();
+            }
+        }
+
+
+        // --- LÓGICA DA TABELA DE CONTEÚDO ---
+
+        /**
+         * Renderiza a tabela de conteúdo com base nos dados e no filtro.
+         */
+        function renderTable() {
+            const tableBody = document.getElementById('contentTableBody');
+            const filterText = document.getElementById('filterInput').value.toLowerCase();
+            tableBody.innerHTML = '';
+
+            const filteredContent = studyContent
+                .filter(item => item.materia.toLowerCase().includes(filterText))
+                .sort((a, b) => new Date(b.data_estudo) - new Date(a.data_estudo)); // Ordena pela data de estudo (mais recente primeiro)
+
+            if (filteredContent.length === 0) {
+                tableBody.innerHTML = `
+                    <tr class="border-b bg-var(--color-card) hover:bg-var(--color-card)/70">
+                        <td colspan="10" class="py-4 px-6 text-center italic text-gray-500">
+                            ${filterText ? 'Nenhum tópico encontrado com este filtro.' : 'Nenhum tópico adicionado.'}
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            filteredContent.forEach((item) => {
+                // Encontra o índice original no array 'studyContent' para fins de listras zebra
+                const originalIndex = studyContent.findIndex(i => i.id === item.id);
+
+                const row = document.createElement('tr');
+                row.className = 'border-b hover:bg-var(--color-card)/70';
+                row.style.backgroundColor = originalIndex % 2 === 0 ? 'var(--color-card)' : '#263040'; // Zebra stripe
+
+                row.innerHTML = `
+                    <td class="py-3 px-6 font-medium whitespace-nowrap text-white">${item.materia}</td>
+                    <td class="py-3 px-6">${item.topico}</td>
+                    <td class="py-3 px-6">${formatDate(item.data_estudo)}</td>
+                    ${createCheckboxCell(item.estudei, item.id, 'estudei')}
+                    ${createCheckboxCell(item.exercicio, item.id, 'exercicio')}
+                    ${createRevisionCells(item)}
+                    <td class="py-3 px-3 text-center">
+                        <button onclick="deleteContent(${item.id})" class="text-var(--color-danger) hover:text-red-300 font-medium">
+                            Excluir
+                        </button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        /**
+         * Cria a célula da tabela com o checkbox de status (Estudei/Exercício).
+         * @param {boolean} status - O estado do checkbox.
+         * @param {number} id - O ID único do item. 
+         * @param {string} field - O campo a ser atualizado ('estudei' ou 'exercicio').
+         * @returns {string} O HTML da célula.
+         */
+        function createCheckboxCell(status, id, field) {
+            const checked = status ? 'checked' : '';
+            return `
+                <td class="py-3 px-3 text-center">
+                    <input type="checkbox" ${checked} 
+                           onclick="toggleStatus(${id}, '${field}')"
+                           class="w-4 h-4 text-var(--color-secondary) rounded focus:ring-var(--color-secondary)"
+                           style="accent-color: var(--color-secondary);">
+                </td>
+            `;
+        }
+
+        /**
+         * Cria as células para as revisões (Rev 3, Rev 6, etc.).
+         * @param {Object} item - O objeto de conteúdo.
+         * @returns {string} O HTML das células.
+         */
+        function createRevisionCells(item) {
+            return revisionDays.map(day => {
+                const field = `rev${day}`;
+                const checked = item[field] ? 'checked' : '';
+                
+                // Calcula a data de revisão esperada
+                const expectedDate = new Date(item.data_estudo);
+                if (item.data_estudo) {
+                    expectedDate.setDate(expectedDate.getDate() + day);
+                }
+                
+                // Formata a data de conclusão (se revisado) ou a data esperada
+                const displayDate = item[field] 
+                    ? formatDate(item[field] === true ? new Date() : item[field]) // Se true (revisado hoje), mostra a data de hoje
+                    : (item.data_estudo ? formatDate(expectedDate) : '---');
+
+                return `
+                    <td class="py-3 px-3 text-center group relative cursor-help">
+                        <input type="checkbox" ${checked} 
+                               onclick="toggleRevision(${item.id}, '${field}')"
+                               class="w-4 h-4 text-var(--color-primary) rounded focus:ring-var(--color-primary)"
+                               style="accent-color: var(--color-primary);">
+                        <span class="text-xs block mt-1 ${item[field] ? 'text-var(--color-secondary)' : 'text-gray-500'}">
+                            ${item[field] ? 'FEITO' : displayDate}
+                        </span>
+                        <!-- Tooltip para a data esperada (somente se não estiver feito) -->
+                        ${!item[field] && item.data_estudo ? `
+                            <span class="revision-tooltip absolute z-50 p-2 text-xs font-light text-white bg-gray-800 rounded-lg shadow-xl whitespace-nowrap">
+                                Data Esperada: ${formatDate(expectedDate)}
+                            </span>
+                        ` : ''}
+                    </td>
+                `;
+            }).join('');
+        }
+
+        /**
+         * Adiciona um novo tópico à lista.
+         */
+        document.getElementById('addContentForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const materia = document.getElementById('materia').value.trim();
+            const topico = document.getElementById('topico').value.trim();
+            
+            if (!materia || !topico) {
+                showNotification('Por favor, preencha a Matéria e o Tópico.', 'var(--color-danger)');
+                return;
+            }
+
+            const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+            const newItem = {
+                id: Date.now(), // ID único
+                materia,
+                topico,
+                data_estudo: today,
+                estudei: true, // Marca como estudado automaticamente
+                exercicio: false,
+                rev3: false,
+                rev6: false,
+                rev15: false,
+                rev30: false,
+            };
+
+            studyContent.push(newItem);
+            saveContent();
+            renderTable(); // Garante que a tabela seja atualizada Imediatamente
+            this.reset();
+            showNotification(`Tópico "${topico}" adicionado e agendado para revisões!`, 'var(--color-secondary)');
+        });
+
+        /**
+         * Alterna o status de 'estudei' ou 'exercicio'.
+         * @param {number} id - O ID único do item.
+         * @param {string} field - O campo a ser atualizado.
+         */
+        function toggleStatus(id, field) {
+            // Encontra o índice correto pelo ID
+            const index = studyContent.findIndex(item => item.id == id);
+            
+            if (index !== -1) {
+                studyContent[index][field] = !studyContent[index][field];
+                saveContent();
+                renderTable();
+            }
+        }
+
+        /**
+         * Alterna o status da revisão, marcando a data atual.
+         * @param {number} id - O ID único do item.
+         * @param {string} field - O campo de revisão a ser atualizado (ex: 'rev3').
+         */
+        function toggleRevision(id, field) {
+            // Encontra o índice correto pelo ID
+            const index = studyContent.findIndex(item => item.id == id);
+
+            if (index !== -1) {
+                const isChecked = studyContent[index][field];
+                const item = studyContent[index];
+                
+                if (isChecked) {
+                    // Desmarcar: retorna para 'false'
+                    item[field] = false;
+                    showNotification(`Revisão de "${item.topico}" desmarcada!`);
+                } else {
+                    // Marcar: salva a data de hoje (YYYY-MM-DD)
+                    item[field] = new Date().toISOString().split('T')[0];
+                    showNotification(`Revisão de "${item.topico}" marcada como CONCLUÍDA!`, 'var(--color-secondary)');
+                }
+                
+                saveContent();
+                renderTable();
+            }
+        }
+
+        /**
+         * Exclui um tópico.
+         * @param {number} id - O ID único do item a ser excluído. 
+         */
+        function deleteContent(id) {
+             // Encontra o índice correto pelo ID
+             const index = studyContent.findIndex(item => item.id == id);
+
+             if (index !== -1) {
+                const topic = studyContent[index].topico;
+                
+                // A exclusão agora é imediata ao clicar no botão 'Excluir'
+                studyContent.splice(index, 1);
+                saveContent();
+                renderTable();
+                showNotification(`Tópico "${topic}" excluído.`, 'var(--color-danger)');
+             } else {
+                 console.error('Erro ao excluir: Tópico não encontrado com ID:', id);
+             }
+        }
+        
+        // A função de confirmação nativa (window.confirm) foi removida para garantir a estabilidade.
+
+        // --- LÓGICA DO PLANEJAMENTO SEMANAL ---
+
+        /**
+         * Renderiza a seção de planejamento semanal.
+         */
+        function renderWeeklyPlanner() {
+            const plannerContainer = document.getElementById('weeklyPlanner');
+            plannerContainer.innerHTML = '';
+            
+            // Inicializa weeklyPlan se estiver vazio (apenas para o primeiro acesso)
+            if (Object.keys(weeklyPlan).length === 0) {
+                weekdays.forEach(day => {
+                    weeklyPlan[day.key] = {
+                        tasks: ''
+                    };
+                });
+                localStorage.setItem('weeklyPlan', JSON.stringify(weeklyPlan));
+            }
+
+            weekdays.forEach(day => {
+                const card = document.createElement('div');
+                card.className = 'p-4 rounded-lg shadow-lg flex flex-col h-full';
+                card.style.backgroundColor = 'var(--color-card)';
+                
+                card.innerHTML = `
+                    <h3 class="text-lg font-bold mb-3 border-b border-gray-600 pb-1">${day.name}</h3>
+                    <textarea 
+                        id="plan-${day.key}" 
+                        placeholder="Metas de estudo, matérias ou tarefas para ${day.name}..." 
+                        rows="6" 
+                        class="w-full p-2 rounded-lg input-dark flex-grow resize-none"
+                        oninput="saveWeeklyPlan('${day.key}')"
+                    >${weeklyPlan[day.key]?.tasks || ''}</textarea>
+                `;
+                plannerContainer.appendChild(card);
+            });
+        }
+
+        /**
+         * Salva o conteúdo do planejamento semanal em tempo real.
+         * @param {string} dayKey - A chave do dia da semana.
+         */
+        function saveWeeklyPlan(dayKey) {
+            const textarea = document.getElementById(`plan-${dayKey}`);
+            if (textarea) {
+                weeklyPlan[dayKey] = {
+                    tasks: textarea.value
+                };
+                localStorage.setItem('weeklyPlan', JSON.stringify(weeklyPlan));
+            }
+        }
+
+
+        // --- LÓGICA DOS ALERTAS DE REVISÃO ---
+
+        /**
+         * Verifica e atualiza a aba de alertas de revisão.
+         */
+        function updateAlertsTab() {
+            const today = new Date();
+            // A data de referência é hoje (meia-noite) para comparação
+            const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            
+            const alertsContainer = document.getElementById('revisionAlerts');
+            const alertCountSpan = document.getElementById('alert-count');
+            const noAlertsMessage = document.getElementById('noAlertsMessage');
+            
+            alertsContainer.innerHTML = ''; // Limpa os alertas anteriores
+            
+            let revisionItems = [];
+            let totalAlerts = 0;
+
+            // 1. Alertas de Revisão Pendente
+            studyContent.forEach(item => {
+                if (!item.data_estudo) return; // Não gera alerta se não há data de estudo
+
+                const studyDate = dateFromString(item.data_estudo);
+
+                revisionDays.forEach(days => {
+                    const field = `rev${days}`;
+                    // Verifica se a revisão NÃO foi feita
+                    if (item[field] === false || (typeof item[field] === 'string' && dateFromString(item[field]) < todayStart)) {
+                        
+                        // Calcula a data de revisão esperada (StudyDate + N dias)
+                        const expectedRevisionDate = new Date(studyDate);
+                        expectedRevisionDate.setDate(studyDate.getDate() + days);
+
+                        // Compara a data de hoje (início do dia) com a data esperada
+                        if (expectedRevisionDate <= todayStart) {
+                            totalAlerts++;
+                            revisionItems.push({
+                                type: 'revisao',
+                                materia: item.materia,
+                                topico: item.topico,
+                                revType: `Rev ${days} Dias`,
+                                expectedDate: expectedRevisionDate,
+                                dataEstudo: item.data_estudo,
+                                index: studyContent.findIndex(i => i.id === item.id), // Encontra o índice para marcar
+                                field: field
+                            });
+                        }
+                    }
+                });
+            });
+            
+            // 2. Alerta de Planejamento (O que estudar hoje)
+            const todayDay = weekdays[today.getDay() === 0 ? 6 : today.getDay() - 1].key; // 0=Dom (6), 1=Seg (0), etc.
+            const todayPlan = weeklyPlan[todayDay]?.tasks;
+
+            if (todayPlan && todayPlan.trim().length > 0) {
+                 totalAlerts++;
+                 revisionItems.push({
+                    type: 'planejamento',
+                    materia: 'Planejamento de Hoje',
+                    topico: 'O que estudar hoje',
+                    tasks: todayPlan
+                });
+            }
+
+            // Ordena os alertas: Planejamento primeiro, depois revisões por data esperada (mais antigas primeiro)
+            revisionItems.sort((a, b) => {
+                if (a.type === 'planejamento') return -1;
+                if (b.type === 'planejamento') return 1;
+                return a.expectedDate - b.expectedDate;
+            });
+            
+            // 3. Renderiza os Alertas
+            if (totalAlerts > 0) {
+                noAlertsMessage.classList.add('hidden');
+                revisionItems.forEach(alert => {
+                    let cardHtml = '';
+                    let cardBg = 'var(--color-card)';
+                    let actionButton = '';
+
+                    if (alert.type === 'planejamento') {
+                        cardBg = '#2E3A4D';
+                        cardHtml = `
+                            <p class="text-sm text-gray-400">🚨 O QUE ESTUDAR HOJE:</p>
+                            <p class="whitespace-pre-wrap">${alert.tasks}</p>
+                        `;
+                    } else if (alert.type === 'revisao') {
+                        // Verifica se a revisão está muito atrasada para dar um toque mais forte
+                        const isLate = alert.expectedDate < todayStart;
+                        cardBg = isLate ? '#202731' : 'var(--color-card)';
+                        const titleColor = isLate ? 'var(--color-danger)' : 'var(--color-primary)';
+                        
+                        actionButton = `
+                            <button onclick="markRevisionAsDone(${alert.index}, '${alert.field}')" 
+                                class="btn-primary mt-2 px-4 py-1 text-sm rounded-lg whitespace-nowrap"
+                                style="background-color: var(--color-secondary); color: ${cardBg};">
+                                Marcar como Concluído
+                            </button>
+                        `;
+                        
+                        cardHtml = `
+                            <h3 class="text-lg font-bold" style="color: ${titleColor};">${alert.revType} - ${alert.materia}</h3>
+                            <p class="text-white font-medium">${alert.topico}</p>
+                            <p class="text-sm ${isLate ? 'text-var(--color-danger) font-bold' : 'text-gray-400'}">
+                                ${isLate ? 'ATRASADO DESDE:' : 'Data Esperada:'} ${formatDate(alert.expectedDate)}
+                            </p>
+                            <p class="text-xs text-gray-500">Estudado em: ${formatDate(alert.dataEstudo)}</p>
+                        `;
+                    }
+                    
+                    const alertCard = document.createElement('div');
+                    alertCard.className = 'p-4 rounded-lg shadow-xl border border-gray-700 flex justify-between items-center flex-wrap';
+                    alertCard.style.backgroundColor = cardBg;
+                    alertCard.innerHTML = `
+                        <div class="flex-grow min-w-[70%]">${cardHtml}</div>
+                        <div class="mt-2 sm:mt-0">${actionButton}</div>
+                    `;
+                    alertsContainer.appendChild(alertCard);
+                });
+            } else {
+                noAlertsMessage.classList.remove('hidden');
+            }
+
+            // Atualiza a contagem de alertas
+            alertCountSpan.textContent = totalAlerts;
+            document.getElementById('tab-alerts').style.color = totalAlerts > 0 ? 'var(--color-danger)' : 'var(--color-text)';
+            document.getElementById('todayDate').textContent = formatDate(today);
+        }
+
+        /**
+         * Função de atalho para marcar uma revisão como concluída a partir da aba de Alertas.
+         * @param {number} index - O índice do item em studyContent.
+         * @param {string} field - O campo de revisão ('rev3', 'rev6', etc.).
+         */
+        function markRevisionAsDone(index, field) {
+            // Usa a mesma lógica de toggleRevision, mas força a marcação
+            if (studyContent[index] && !studyContent[index][field]) {
+                studyContent[index][field] = new Date().toISOString().split('T')[0];
+                saveContent();
+                // Re-renderiza a tabela e os alertas
+                renderTable();
+                updateAlertsTab();
+                showNotification(`Revisão concluída! Tópico: ${studyContent[index].topico} (${field})`, 'var(--color-secondary)');
+            }
+        }
+
+
+        // --- INICIALIZAÇÃO ---
+
+        /**
+         * Inicializa o aplicativo ao carregar a página.
+         */
+        function initializeApp() {
+            // Define o botão 'Tabela de Conteúdo' como ativo por padrão na primeira carga
+            document.getElementById('tab-content').style.backgroundColor = 'var(--color-card)';
+            document.getElementById('tab-content').style.color = 'var(--color-primary)';
+            
+            // Renderiza a tabela e atualiza os alertas
+            renderTable();
+            updateAlertsTab();
+            renderWeeklyPlanner(); // Renderiza o planner para inicializar o state
+        }
+
+        // Garante que o initializeApp seja chamado após o DOM carregar
+        document.addEventListener('DOMContentLoaded', initializeApp);
+
+    </script>
+</body>
+</html>
