@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elite Study App - Premium</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap');
+        
+        :root {
+            --color-primary: #6067E0;
+            --color-secondary: #87E060;
+            --color-theory: #E0BC60;
+            --color-background: #0f172a;
+            --color-card: #1e293b;
+            --color-text: #f8fafc;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--color-background);
+            color: var(--color-text);
+            background-image: radial-gradient(circle at top right, #1e1b4b, transparent), 
+                              radial-gradient(circle at bottom left, #0f172a, transparent);
+            background-attachment: fixed;
+        }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .active-tab {
+            background: rgba(96, 103, 224, 0.15) !important;
+            color: var(--color-primary) !important;
+            border-bottom: 3px solid var(--color-primary);
+        }
+
+        .check-container {
+            display: inline-block;
+            position: relative;
+            cursor: pointer;
+            width: 26px;
+            height: 26px;
+        }
+        .check-container input { position: absolute; opacity: 0; cursor: pointer; }
+        .checkmark {
+            position: absolute;
+            top: 0; left: 0;
+            height: 26px; width: 26px;
+            background-color: rgba(15, 23, 42, 0.5);
+            border: 2px solid #334155;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        .check-container:hover input ~ .checkmark { border-color: var(--color-secondary); }
+        .check-container input:checked ~ .checkmark {
+            background-color: var(--color-secondary);
+            border-color: var(--color-secondary);
+            box-shadow: 0 0 15px rgba(135, 224, 96, 0.4);
+        }
+        .checkmark:after {
+            content: "";
+            position: absolute;
+            display: none;
+            left: 9px; top: 5px;
+            width: 6px; height: 11px;
+            border: solid #1a1f26;
+            border-width: 0 3px 3px 0;
+            transform: rotate(45deg);
+        }
+        .check-container input:checked ~ .checkmark:after { display: block; }
+
+        .day-btn {
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+        .day-btn.selected {
+            background-color: var(--color-primary);
+            border-color: var(--color-primary);
+            color: white;
+            box-shadow: 0 0 12px rgba(96, 103, 224, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .timeline-item {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 1.25rem;
+            border-radius: 1.25rem;
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            margin-bottom: 0.75rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .timeline-item.completed {
+            opacity: 0.5;
+            background: rgba(15, 23, 42, 0.3);
+            border-color: transparent;
+        }
+
+        .timeline-time {
+            min-width: 70px;
+            font-weight: 800;
+            color: var(--color-primary);
+            font-family: monospace;
+            font-size: 1.1rem;
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <header class="text-center mb-10">
+        <h1 class="text-5xl font-black text-white mb-2 tracking-tighter italic">ELITE<span class="text-[#6067E0]">STUDY</span></h1>
+        <p class="text-slate-400 font-medium tracking-widest uppercase text-xs">Gestão de Performance e Conteúdo</p>
+    </header>
+
+    <div class="max-w-[1300px] mx-auto rounded-3xl glass-panel shadow-2xl overflow-hidden">
+        <nav class="flex bg-slate-900/40 border-b border-white/5 overflow-x-auto">
+            <button id="tab-schedule" class="flex-1 p-5 font-bold hover:bg-white/5 transition min-w-[130px]" onclick="switchTab('schedule')">🕒 AGENDA</button>
+            <button id="tab-content" class="flex-1 p-5 font-bold hover:bg-white/5 transition min-w-[130px]" onclick="switchTab('content')">📚 CONTEÚDOS</button>
+            <button id="tab-alerts" class="flex-1 p-5 font-bold hover:bg-white/5 transition relative min-w-[130px]" onclick="switchTab('alerts')">
+                🔔 ALERTAS (<span id="alert-count">0</span>)
+            </button>
+        </nav>
+
+        <main class="p-6 md:p-10">
+            <section id="schedule" class="tab-page hidden">
+                <div class="bg-slate-900/40 p-6 rounded-2xl border border-white/5 mb-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-end">
+                        <div class="lg:col-span-5">
+                            <label class="block text-[10px] font-bold uppercase text-slate-400 mb-2 ml-1">Atividade</label>
+                            <input type="text" id="sch-task" placeholder="Ex: Acordar às 07:00" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-white font-semibold outline-none focus:border-indigo-500">
+                        </div>
+                        <div class="lg:col-span-2">
+                            <label class="block text-[10px] font-bold uppercase text-slate-400 mb-2 ml-1">Horário</label>
+                            <input type="time" id="sch-time" value="07:00" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-center font-bold text-white outline-none">
+                        </div>
+                        <div class="lg:col-span-5">
+                            <label class="block text-[10px] font-bold uppercase text-slate-400 mb-2 ml-1">Repetir nos dias:</label>
+                            <div class="flex gap-1.5 flex-wrap" id="day-selector">
+                                <button type="button" data-value="1" class="day-btn flex-1 min-w-[45px] py-3 rounded-xl bg-slate-950 border border-slate-700 text-[10px] font-black transition">SEG</button>
+                                <button type="button" data-value="2" class="day-btn flex-1 min-w-[45px] py-3 rounded-xl bg-slate-950 border border-slate-700 text-[10px] font-black transition">TER</button>
+                                <button type="button" data-value="3" class="day-btn flex-1 min-w-[45px] py-3 rounded-xl bg-slate-950 border border-slate-700 text-[10px] font-black transition">QUA</button>
+                                <button type="button" data-value="4" class="day-btn flex-1 min-w-[45px] py-3 rounded-xl bg-slate-950 border border-slate-700 text-[10px] font-black transition">QUI</button>
+                                <button type="button" data-value="5" class="day-btn flex-1 min-w-[45px] py-3 rounded-xl bg-slate-950 border border-slate-700 text-[10px] font-black transition">SEX</button>
+                                <button type="button" data-value="6" class="day-btn flex-1 min-w-[45px] py-3 rounded-xl bg-slate-950 border border-slate-700 text-[10px] font-black transition">SAB</button>
+                                <button type="button" data-value="0" class="day-btn flex-1 min-w-[45px] py-3 rounded-xl bg-slate-950 border border-slate-700 text-[10px] font-black transition">DOM</button>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="addScheduleBlock()" class="w-full mt-6 bg-[#6067E0] hover:bg-indigo-500 text-white font-black py-4 rounded-xl transition shadow-xl uppercase tracking-wider text-sm">
+                        + Fixar Atividade na Agenda
+                    </button>
+                </div>
+
+                <div class="flex flex-wrap gap-4 mb-10">
+                    <button onclick="resetScheduleChecks()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 px-6 rounded-xl border border-white/5 transition text-xs uppercase tracking-widest">
+                        🔄 Resetar Checks do Dia
+                    </button>
+                    <button onclick="clearEntireSchedule()" class="flex-1 bg-red-900/20 hover:bg-red-900/40 text-red-400 font-bold py-3 px-6 rounded-xl border border-red-500/20 transition text-xs uppercase tracking-widest">
+                        🗑️ Limpar Toda a Agenda
+                    </button>
+                </div>
+
+                <div id="scheduleTimeline" class="space-y-2 min-h-[300px]"></div>
+            </section>
+
+            <section id="content" class="tab-page">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+                    <div class="bg-slate-900/40 p-5 rounded-2xl border border-white/5">
+                        <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Tópicos Totais</div>
+                        <div id="dash-total" class="text-3xl font-black text-white">0</div>
+                    </div>
+                    <div class="bg-slate-900/40 p-5 rounded-2xl border border-white/5">
+                        <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Teoria</div>
+                        <div id="dash-theo" class="text-3xl font-black text-[#E0BC60]">0%</div>
+                    </div>
+                    <div class="bg-slate-900/40 p-5 rounded-2xl border border-white/5">
+                        <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Exercícios</div>
+                        <div id="dash-ex" class="text-3xl font-black text-[#87E060]">0%</div>
+                    </div>
+                    <div class="bg-slate-900/40 p-5 rounded-2xl border border-white/5">
+                        <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Revisões</div>
+                        <div id="dash-rev" class="text-3xl font-black text-indigo-400">0%</div>
+                    </div>
+                    <div class="bg-slate-900/40 p-5 rounded-2xl border border-white/5 flex flex-col justify-center">
+                        <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Progresso Geral</div>
+                        <div class="w-full bg-slate-800 rounded-full h-3">
+                            <div id="dash-bar" class="bg-indigo-500 h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/40 p-8 rounded-3xl border border-white/5 mb-10">
+                    <form id="addContentForm" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-5 items-end">
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-slate-500 mb-2 ml-1">Matéria</label>
+                            <input type="text" id="materia" required placeholder="Ex: Português" class="w-full p-3.5 rounded-xl bg-slate-950/50 border border-slate-700 focus:border-indigo-500 outline-none text-white">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-slate-500 mb-2 ml-1">Tópico</label>
+                            <input type="text" id="topico" required placeholder="Ex: Crase" class="w-full p-3.5 rounded-xl bg-slate-950/50 border border-slate-700 focus:border-indigo-500 outline-none text-white">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-slate-500 mb-2 ml-1">Data</label>
+                            <input type="date" id="data_estudo" required class="w-full p-3.5 rounded-xl bg-slate-950/50 border border-slate-700 focus:border-indigo-500 outline-none text-white">
+                        </div>
+                        <div class="flex items-center justify-around bg-slate-950/30 p-3 rounded-xl border border-slate-800 h-[54px]">
+                            <div class="flex items-center gap-2">
+                                <label class="check-container">
+                                    <input type="checkbox" id="check-teoria">
+                                    <span class="checkmark"></span>
+                                </label>
+                                <span class="text-[10px] font-bold uppercase text-slate-400">Teoria</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <label class="check-container">
+                                    <input type="checkbox" id="check-exercicio">
+                                    <span class="checkmark"></span>
+                                </label>
+                                <span class="text-[10px] font-bold uppercase text-slate-400">Exerc.</span>
+                            </div>
+                        </div>
+                        <button type="submit" class="md:col-span-3 lg:col-span-4 bg-[#6067E0] hover:bg-indigo-500 py-4 rounded-xl font-black text-white transition uppercase tracking-widest text-sm shadow-xl">
+                            Registrar Novo Estudo
+                        </button>
+                    </form>
+                </div>
+                
+                <div class="mb-6">
+                    <input type="text" id="filterInput" placeholder="🔍 Filtrar por matéria..." class="w-full p-4 rounded-2xl bg-slate-900/40 border border-white/5 focus:border-indigo-500 outline-none text-white" oninput="renderTable()">
+                </div>
+
+                <div class="bg-slate-900/30 rounded-3xl border border-white/5 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left min-w-[1000px]">
+                            <thead class="bg-slate-800/50 text-slate-400 text-[11px] uppercase font-bold tracking-widest">
+                                <tr>
+                                    <th class="p-6">Matéria / Tópico</th>
+                                    <th class="p-6 text-center">Data</th>
+                                    <th class="p-6 text-center">Teoria</th>
+                                    <th class="p-6 text-center">Exerc.</th>
+                                    <th colspan="6" class="p-6 text-center">Revisões Espaçadas</th>
+                                    <th class="p-6 text-center">Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="contentTableBody" class="divide-y divide-white/5"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="alerts" class="tab-page hidden">
+                <h2 class="text-3xl font-black text-white mb-8 tracking-tight uppercase">Revisões Pendentes: <span id="todayDateDisplay" class="text-indigo-400"></span></h2>
+                <div id="revisionAlerts" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            </section>
+        </main>
+    </div>
+
+    <div id="notification" class="fixed bottom-8 right-8 p-5 rounded-2xl shadow-2xl text-white font-black z-50 transition-all transform translate-x-[150%] uppercase text-xs tracking-widest"></div>
+
+    <script>
+        let studyContent = JSON.parse(localStorage.getItem('studyContent')) || [];
+        let scheduleBlocks = JSON.parse(localStorage.getItem('scheduleBlocks')) || [];
+        const revIntervals = [3, 6, 15, 30, 60, 90];
+
+        function setDefaultDate() {
+            document.getElementById('data_estudo').value = new Date().toISOString().split('T')[0];
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-page').forEach(p => p.classList.add('hidden'));
+            document.querySelectorAll('nav button').forEach(b => b.classList.remove('active-tab'));
+            document.getElementById(tabId).classList.remove('hidden');
+            document.getElementById(`tab-${tabId}`).classList.add('active-tab');
+            if(tabId === 'schedule') renderSchedule();
+        }
+
+        function renderSchedule() {
+            const container = document.getElementById('scheduleTimeline');
+            const days = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+            scheduleBlocks.sort((a, b) => (a.day !== b.day) ? a.day - b.day : a.time.localeCompare(b.time));
+            container.innerHTML = '';
+            let currentDay = null;
+            if(scheduleBlocks.length === 0) {
+                container.innerHTML = `<div class="text-center py-20 text-slate-600 font-bold uppercase tracking-widest text-sm">Agenda vazia.</div>`;
+                return;
+            }
+            scheduleBlocks.forEach((block, index) => {
+                if (currentDay !== block.day) {
+                    currentDay = block.day;
+                    container.innerHTML += `<h4 class="text-indigo-400 font-black text-[10px] uppercase tracking-[0.4em] mt-10 mb-4 ml-2 flex items-center"><span class="bg-indigo-400/20 h-px flex-1 mr-4"></span>${days[block.day]}</h4>`;
+                }
+                const div = document.createElement('div');
+                div.className = `timeline-item ${block.done ? 'completed' : ''}`;
+                div.innerHTML = `
+                    <label class="check-container"><input type="checkbox" ${block.done ? 'checked' : ''} onchange="toggleTaskDone(${index})"><span class="checkmark"></span></label>
+                    <div class="timeline-time">${block.time}</div>
+                    <div class="flex-1 font-bold text-lg ${block.done ? 'line-through text-slate-500' : 'text-white'}">${block.task}</div>
+                    <button onclick="deleteBlock(${index})" class="text-slate-600 hover:text-red-400 font-bold text-xl px-2">×</button>`;
+                container.appendChild(div);
+            });
+        }
+
+        // --- NOVAS FUNÇÕES DE LIMPEZA ---
+        function resetScheduleChecks() {
+            if (confirm("Deseja desmarcar todas as atividades concluídas?")) {
+                scheduleBlocks.forEach(block => block.done = false);
+                localStorage.setItem('scheduleBlocks', JSON.stringify(scheduleBlocks));
+                renderSchedule();
+                notify("Checks resetados!", "var(--color-primary)");
+            }
+        }
+
+        function clearEntireSchedule() {
+            if (confirm("ATENÇÃO: Isso apagará todos os horários fixos da sua agenda permanentemente. Confirmar?")) {
+                scheduleBlocks = [];
+                localStorage.setItem('scheduleBlocks', JSON.stringify(scheduleBlocks));
+                renderSchedule();
+                notify("Agenda limpa!", "#ef4444");
+            }
+        }
+        // --------------------------------
+
+        function addScheduleBlock() {
+            const task = document.getElementById('sch-task');
+            const time = document.getElementById('sch-time');
+            const btns = document.querySelectorAll('.day-btn.selected');
+            if (!task.value || btns.length === 0) return alert("Preencha a atividade e selecione os dias!");
+            btns.forEach(btn => scheduleBlocks.push({ task: task.value, day: parseInt(btn.dataset.value), time: time.value, done: false }));
+            localStorage.setItem('scheduleBlocks', JSON.stringify(scheduleBlocks));
+            renderSchedule();
+            task.value = '';
+            btns.forEach(b => b.classList.remove('selected'));
+            notify("Rotina adicionada!", "var(--color-primary)");
+        }
+
+        function toggleTaskDone(index) {
+            scheduleBlocks[index].done = !scheduleBlocks[index].done;
+            localStorage.setItem('scheduleBlocks', JSON.stringify(scheduleBlocks));
+            renderSchedule();
+        }
+
+        function deleteBlock(index) {
+            scheduleBlocks.splice(index, 1);
+            localStorage.setItem('scheduleBlocks', JSON.stringify(scheduleBlocks));
+            renderSchedule();
+        }
+
+        function saveData() {
+            localStorage.setItem('studyContent', JSON.stringify(studyContent));
+            updateGlobalUI();
+        }
+
+        function updateGlobalUI() {
+            renderTable();
+            updateAlerts();
+            updateDashboard();
+        }
+
+        function updateDashboard() {
+            const total = studyContent.length;
+            const theoryCount = studyContent.filter(i => i.teoria).length;
+            const exerciseCount = studyContent.filter(i => i.exercicio).length;
+            
+            let totalRevPossible = total * revIntervals.length;
+            let totalRevDone = 0;
+            studyContent.forEach(item => revIntervals.forEach(d => { if(item[`rev${d}`]) totalRevDone++; }));
+
+            const theoPerc = total > 0 ? Math.round((theoryCount / total) * 100) : 0;
+            const exPerc = total > 0 ? Math.round((exerciseCount / total) * 100) : 0;
+            const revPerc = totalRevPossible > 0 ? Math.round((totalRevDone / totalRevPossible) * 100) : 0;
+            const overall = Math.round((theoPerc + exPerc + revPerc) / 3);
+
+            document.getElementById('dash-total').textContent = total;
+            document.getElementById('dash-theo').textContent = `${theoPerc}%`;
+            document.getElementById('dash-ex').textContent = `${exPerc}%`;
+            document.getElementById('dash-rev').textContent = `${revPerc}%`;
+            document.getElementById('dash-bar').style.width = `${overall}%`;
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('contentTableBody');
+            const query = document.getElementById('filterInput').value.toLowerCase();
+            tbody.innerHTML = '';
+            studyContent.filter(i => i.materia.toLowerCase().includes(query)).sort((a,b) => b.id - a.id).forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-white/5 transition";
+                tr.innerHTML = `
+                    <td class="p-6"><div class="font-bold text-white text-lg">${item.materia}</div><div class="text-[11px] text-slate-500 uppercase">${item.topico}</div></td>
+                    <td class="p-6 text-center text-sm font-mono text-slate-400">${item.data_estudo.split('-').reverse().join('/')}</td>
+                    <td class="p-6 text-center"><label class="check-container mx-auto"><input type="checkbox" ${item.teoria ? 'checked' : ''} onchange="toggleKey(${item.id}, 'teoria')"><span class="checkmark"></span></label></td>
+                    <td class="p-6 text-center"><label class="check-container mx-auto"><input type="checkbox" ${item.exercicio ? 'checked' : ''} onchange="toggleKey(${item.id}, 'exercicio')"><span class="checkmark"></span></label></td>
+                    ${revIntervals.map(days => `<td class="p-4 text-center"><label class="check-container mx-auto"><input type="checkbox" ${item[`rev${days}`] ? 'checked' : ''} onchange="toggleRev(${item.id}, 'rev${days}')"><span class="checkmark"></span></label><div class="text-[9px] font-black text-slate-600 mt-2">${days}D</div></td>`).join('')}
+                    <td class="p-6 text-center"><button onclick="deleteItem(${item.id})" class="text-slate-600 hover:text-red-400 font-bold text-xs">EXCLUIR</button></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateAlerts() {
+            const container = document.getElementById('revisionAlerts');
+            const alertCount = document.getElementById('alert-count');
+            const today = new Date().setHours(0,0,0,0);
+            container.innerHTML = '';
+            let count = 0;
+            studyContent.forEach(item => {
+                revIntervals.forEach(days => {
+                    if (!item[`rev${days}`]) {
+                        const expDate = new Date(item.data_estudo + 'T00:00:00');
+                        expDate.setDate(expDate.getDate() + days);
+                        if (expDate <= today) {
+                            count++;
+                            container.innerHTML += `
+                                <div class="p-6 rounded-3xl bg-slate-900/60 border border-red-500/20 flex flex-col shadow-xl">
+                                    <span class="text-[10px] font-black uppercase text-red-500 mb-2">Ciclo de ${days} dias</span>
+                                    <h4 class="font-bold text-white text-xl">${item.materia}</h4>
+                                    <p class="text-sm text-slate-400 mb-6">${item.topico}</p>
+                                    <button onclick="toggleRev(${item.id}, 'rev${days}')" class="w-full bg-green-600 hover:bg-green-500 py-3 rounded-xl text-xs font-black text-white">CONCLUIR REVISÃO</button>
+                                </div>`;
+                        }
+                    }
+                });
+            });
+            alertCount.textContent = count;
+            document.getElementById('todayDateDisplay').textContent = new Date().toLocaleDateString('pt-BR');
+        }
+
+        document.getElementById('addContentForm').onsubmit = function(e) {
+            e.preventDefault();
+            const newContent = {
+                id: Date.now(),
+                materia: document.getElementById('materia').value,
+                topico: document.getElementById('topico').value,
+                data_estudo: document.getElementById('data_estudo').value,
+                teoria: document.getElementById('check-teoria').checked,
+                exercicio: document.getElementById('check-exercicio').checked
+            };
+            revIntervals.forEach(d => newContent[`rev${d}`] = false);
+            studyContent.push(newContent);
+            this.reset();
+            setDefaultDate();
+            saveData();
+            notify("Registrado com sucesso!", "var(--color-primary)");
+        };
+
+        function toggleKey(id, key) {
+            const item = studyContent.find(i => i.id === id);
+            if (item) { item[key] = !item[key]; saveData(); }
+        }
+
+        function toggleRev(id, field) {
+            const item = studyContent.find(i => i.id === id);
+            if (item) { item[field] = item[field] ? false : new Date().toISOString().split('T')[0]; saveData(); }
+        }
+
+        function deleteItem(id) {
+            if (confirm("Remover?")) { studyContent = studyContent.filter(i => i.id !== id); saveData(); }
+        }
+
+        function notify(msg, color) {
+            const el = document.getElementById('notification');
+            el.textContent = msg; el.style.backgroundColor = color;
+            el.classList.remove('translate-x-[150%]');
+            setTimeout(() => el.classList.add('translate-x-[150%]'), 3000);
+        }
+
+        document.querySelectorAll('.day-btn').forEach(btn => btn.addEventListener('click', () => btn.classList.toggle('selected')));
+        document.addEventListener('DOMContentLoaded', () => { switchTab('content'); setDefaultDate(); updateGlobalUI(); });
+    </script>
+</body>
+</html>
